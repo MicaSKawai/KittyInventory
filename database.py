@@ -176,6 +176,12 @@ class Database:
         await self._q("UPDATE productos SET stock = stock - ? WHERE nombre=?", (cantidad, nombre))
         return True
 
+    async def ajustar_stock(self, nombre: str, nuevo_stock: int):
+        await self._q("UPDATE productos SET stock=? WHERE nombre=?", (nuevo_stock, nombre))
+
+    async def desactivar_producto(self, nombre: str):
+        await self._q("UPDATE productos SET activo=0 WHERE nombre=?", (nombre,))
+
     # ──────────────── VENTAS ────────────────
 
     async def registrar_venta(self, producto: str, cantidad: int, precio_unit: int,
@@ -266,6 +272,9 @@ class Database:
     async def confirmar_deposito(self, msg_id: str):
         await self._q("UPDATE depositos SET confirmado=1 WHERE msg_id=?", (msg_id,))
 
+    async def confirmar_deposito_por_id(self, dep_id: int):
+        await self._q("UPDATE depositos SET confirmado=1 WHERE id=?", (dep_id,))
+
     async def get_deposito_por_msg(self, msg_id: str):
         return await self._row("SELECT * FROM depositos WHERE msg_id=?", (msg_id,))
 
@@ -275,6 +284,12 @@ class Database:
 
     async def get_depositos(self, limit: int = 15) -> list:
         return await self._rows("SELECT * FROM depositos ORDER BY fecha DESC LIMIT ?", (limit,))
+
+    # ── NUEVO: trae SOLO los pendientes sin límite artificial ──
+    async def get_depositos_pendientes(self) -> list:
+        return await self._rows(
+            "SELECT * FROM depositos WHERE confirmado=0 ORDER BY fecha ASC"
+        )
 
     # ──────────────── INGRESOS DE STOCK ────────────────
 
@@ -299,7 +314,8 @@ class Database:
             "gastos":    total_gastos,
             "depositos": total_depositos,
             "pendiente": total_pendiente,
-            "neto":      total_ventas - total_gastos,
+            # ✅ FIX: neto = lo que realmente entró a la org (depósitos confirmados) - gastos
+            "neto":      total_depositos - total_gastos,
         }
 
     async def get_historial_general(self, limit: int = 15) -> list:
